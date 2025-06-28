@@ -43,33 +43,61 @@ static const std::vector<Sample> TRAIN{
 };
 
 struct Vocab {
+
+    Vocab(int max_size) : max_size(max_size) {}
+
     std::unordered_map<std::string, int> id_of;
     std::vector<std::string> word_of;
+    size_t max_size;
 
     int operator[](const std::string &word) {
         auto it = id_of.find(word);
+        int result = -1;
         if (it != id_of.end()) {
-            return it->second;
-        } else {
-            int id = word_of.size();
-            id_of[word] = id;
-            word_of.push_back(word);
-            return id;
+            result = it->second;
         }
+        return result;
     }
     int size() const { return static_cast<int>(word_of.size()); }
+
+    void init(const std::vector<std::string> &data) {
+        std::unordered_map<std::string, int> freq;
+        for (auto &s : data) {
+            freq[s]++;
+        }
+
+        // horrible
+        // FIXME: there is a much better way to do that using heaps
+        std::vector<std::pair<std::string, int>> pairs;
+        for (auto elem : freq) {
+            pairs.emplace_back(std::make_pair(elem.first, elem.second));
+        }
+
+        std::sort(pairs.begin(), pairs.end(), [](auto &a, auto &b) {
+            return a.second > b.second;
+        });
+
+        for (int i = 0, size = std::min(max_size, pairs.size()); i < size; ++i) {
+            auto & pair = pairs[i];
+            this->word_of.push_back(pair.first);
+            this->id_of[pair.first] = i;
+        }
+
+    }
 };
 
 static Vec bow(const std::string &sentence, Vocab &vocab) {
-    for (const auto &tok : tokenize(sentence)) {
+    /*for (const auto &tok : tokenize(sentence)) {
         vocab[tok]; // Add token to vocabulary
-    }
+    }*/
     Vec v = Vec::Zero(vocab.size());
     for (const auto &tok : tokenize(sentence)) {
         int id = vocab[tok];
-        v[id] += 1.0; // Increment the count for the token
+        if (id > -1) {
+            v[id] += 1.0; // Increment the count for the token
+        }
     }
-    std::cout << "Vocabulary size: " << vocab.size() << ", Vector size: " << v.size() << std::endl;
+    //std::cout << "Vocabulary size: " << vocab.size() << ", Vector size: " << v.size() << std::endl;
     return v;
 }
 
@@ -85,7 +113,7 @@ struct Dense {
         vec = Vec::Zero(out);
     }
     Vec forward(const Vec &x) const {
-        std::cout << "Forward pass with input vector of size: " << x.size() << " : " << mat.cols() << std::endl;
+        //std::cout << "Forward pass with input vector of size: " << x.size() << " : " << mat.cols() << std::endl;
         assert(x.size() == mat.cols() && "Input vector size does not match matrix dimensions");
         return mat * x + vec;
     }
@@ -160,12 +188,28 @@ struct Model {
 
 
 int main(){
-    Vocab vocab;
-
+    const int MAX_TOKENS = 1000;
+    const int MAX_LENGTH = 250;
+    Vocab vocab (MAX_TOKENS);
 
     // Build vocabulary
+    std::vector<std::string> words;
+    for (auto &instance : TRAIN) {
+        auto sentence_words = tokenize(instance.sentence);
+        words.insert(words.end(), sentence_words.begin(), sentence_words.end());
+    }
+    vocab.init(words);
+
     std::vector<Vec> inputs;
     std::vector<int> labels;
+
+    const auto size = vocab.size();
+
+    for (auto &instance : TRAIN) {
+        Vec row = bow(instance.sentence, vocab);
+        inputs.push_back(row);
+        labels.push_back(instance.label);
+    }
 
     const int input_dim = vocab.size();
     const int hidden_dim = 32;
@@ -201,6 +245,6 @@ int main(){
         std::cout << std::left << std::setw(30) << ('"' + s + '"')
                   << " → " << EMO[pred] << '\n';
     }
-
+    std::cout << "Finish\n";
     return 0;
 }

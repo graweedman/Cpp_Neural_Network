@@ -66,8 +66,8 @@ struct Vocab {
             freq[s]++;
         }
 
-        // horribly
-        // there is a much better way to do that using heaps
+        // horrible
+        // FIXME: there is a much better way to do that using heaps
         std::vector<std::pair<std::string, int>> pairs;
         for (auto elem : freq) {
             pairs.emplace_back(std::make_pair(elem.first, elem.second));
@@ -76,7 +76,6 @@ struct Vocab {
         std::sort(pairs.begin(), pairs.end(), [](auto &a, auto &b) {
             return a.second > b.second;
         });
-
 
         for (int i = 0, size = std::min(max_size, pairs.size()); i < size; ++i) {
             auto & pair = pairs[i];
@@ -207,7 +206,6 @@ int main(){
     const auto size = vocab.size();
 
     for (auto &instance : TRAIN) {
-
         Vec row = bow(instance.sentence, vocab);
         inputs.push_back(row);
         labels.push_back(instance.label);
